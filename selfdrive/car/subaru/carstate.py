@@ -6,6 +6,7 @@ from openpilot.selfdrive.car.interfaces import CarStateBase
 from opendbc.can.parser import CANParser
 from openpilot.selfdrive.car.subaru.values import DBC, CanBus, PREGLOBAL_CARS, SubaruFlags
 from openpilot.selfdrive.car import CanSignalRateCalculator
+from openpilot.common.params import Params
 
 
 class CarState(CarStateBase):
@@ -15,6 +16,10 @@ class CarState(CarStateBase):
     self.shifter_values = can_define.dv["Transmission"]["Gear"]
 
     self.angle_rate_calulator = CanSignalRateCalculator(50)
+
+    # params = Params()
+    self.has_epb = False
+
 
   def update(self, cp, cp_cam, cp_body, frogpilot_toggles):
     ret = car.CarState.new_message()
@@ -106,6 +111,7 @@ class CarState(CarStateBase):
                      (cp_cam.vl["ES_LKAS_State"]["LKAS_Alert"] == 2)
 
       self.es_lkas_state_msg = copy.copy(cp_cam.vl["ES_LKAS_State"])
+      self.brake_pedal_msg = copy.copy(cp.vl["Brake_Pedal"])
       cp_es_brake = cp_body if self.CP.flags & SubaruFlags.GLOBAL_GEN2 else cp_cam
       self.es_brake_msg = copy.copy(cp_es_brake.vl["ES_Brake"])
       cp_es_status = cp_body if self.CP.flags & SubaruFlags.GLOBAL_GEN2 else cp_cam

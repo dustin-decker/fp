@@ -23,6 +23,10 @@ class CarController(CarControllerBase):
     self.p = CarControllerParams(CP)
     self.packer = CANPacker(DBC[CP.carFingerprint]['pt'])
 
+    # State required for manual hold / stop and go resume logic for Global cars with Manual Parking Brake
+    self.prev_standstill = False
+    self.standstill_start = 0
+
   def update(self, CC, CS, now_nanos, frogpilot_toggles):
     actuators = CC.actuators
     hud_control = CC.hudControl
@@ -56,6 +60,28 @@ class CarController(CarControllerBase):
         can_sends.append(subarucan.create_steering_control(self.packer, apply_steer, apply_steer_req))
 
       self.apply_steer_last = apply_steer
+
+    # *** stop and go logic for Subaru Global with Manual Parking brake ***
+
+    # Initialize the speed command flag; when set the brake command message
+    # will include a speed request (e.g. Speed=3) to keep ACC on.
+    speed_cmd = False
+
+    # Here we apply the manual hold logic if the car does not have EPB.
+    if not CS.has_epb:
+      if CS.out.standstill:
+        # Record start time of being at standstill (if not already recorded)
+        if not self.prev_standstill:
+          self.standstill_start = self.frame
+        # If we have been at standstill for > 0.5 seconds, set speed_cmd True.
+        if self.frame - self.standstill_start > 50:
+          speed_cmd = True
+          if self.frame % 10 == 0:
+            can_sends.append(subarucan.create_sng_hack(self.packer, CS.brake_pedal_msg, speed_cmd))
+      else:
+        # Reset if no longer meeting the standstill condition
+        self.standstill_start = self.frame
+    self.prev_standstill = CS.out.standstill
 
     # *** longitudinal ***
 
@@ -111,7 +137,7 @@ class CarController(CarControllerBase):
                                                       self.CP.openpilotLongitudinalControl, CC.longActive, cruise_rpm))
 
           can_sends.append(subarucan.create_es_brake(self.packer, self.frame // 5, CS.es_brake_msg,
-                                                     self.CP.openpilotLongitudinalControl, CC.longActive, cruise_brake))
+                                                     self.CP.openpilotLongitudinalControl, CC.longActive, cruise_brake, speed_cmd))
 
           can_sends.append(subarucan.create_es_distance(self.packer, self.frame // 5, CS.es_distance_msg, 0, pcm_cancel_cmd,
                                                         self.CP.openpilotLongitudinalControl, cruise_brake > 0, cruise_throttle))

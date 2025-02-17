@@ -1,3 +1,4 @@
+import copy
 from cereal import car
 from openpilot.selfdrive.car.subaru.values import CanBus
 
@@ -179,7 +180,15 @@ def create_es_dashstatus(packer, frame, dashstatus_msg, enabled, long_enabled, l
 
   return packer.make_can_msg("ES_DashStatus", CanBus.main, values)
 
-def create_es_brake(packer, frame, es_brake_msg, long_enabled, long_active, brake_value):
+def create_sng_hack(packer, brake_pedal_msg, speed_cmd):
+
+   values = copy.copy(brake_pedal_msg)
+   if speed_cmd:
+     values["Speed"] = 3
+
+   return packer.make_can_msg("Brake_Pedal", 2, values)
+
+def create_es_brake(packer, frame, es_brake_msg, long_enabled, long_active, brake_value, speed_cmd):
   values = {s: es_brake_msg[s] for s in [
     "CHECKSUM",
     "Signal1",
